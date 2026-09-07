@@ -1,0 +1,7 @@
+# Nenhuma dependencia externa em tempo de execucao: o simulador usa
+# apenas a biblioteca padrao do Python (tkinter, fractions, json,
+# random).
+#
+# O unico uso de uma ferramenta externa e OPCIONAL, so pra gerar o
+# executavel de distribuicao (ver README, secao "Gerando o executavel"):
+pyinstaller>=6.0
