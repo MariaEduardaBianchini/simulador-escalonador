@@ -20,9 +20,17 @@ if _RAIZ not in sys.path:
     sys.path.insert(0, _RAIZ)
 
 from core.modelo import Tarefa
+from core.motor import ALGORITMOS, NOMES_ALGORITMOS, ErroSimulacao
 from core import validacao
 from core.geracao import gerar_tarefas, salvar_cenario, carregar_cenario
+from gui.gantt import desenhar_gantt
 from gui import tema
+
+
+def _fmt(valor):
+    if valor is None:
+        return "-"
+    return f"{float(valor):.2f}"
 
 
 class Aplicacao(tk.Tk):
@@ -52,10 +60,11 @@ class Aplicacao(tk.Tk):
         notebook.pack(fill="both", expand=True, padx=16, pady=(4, 16))
 
         self.aba_tarefas = AbaTarefas(notebook, self)
-        notebook.add(self.aba_tarefas, text="1 · Tarefas")
-        # as abas "2 · Simular" e "3 · Comparar em lote" entram nos
-        # proximos commits
+        self.aba_simulacao = AbaSimulacao(notebook, self)
 
+        notebook.add(self.aba_tarefas, text="1 · Tarefas")
+        notebook.add(self.aba_simulacao, text="2 · Simular um cenário")
+        
     def _tratar_excecao_tk(self, exc, val, tb):
         traceback.print_exception(exc, val, tb)
         messagebox.showerror("Erro inesperado", f"{val}")
@@ -321,3 +330,162 @@ class JanelaSorteio(tk.Toplevel):
 def iniciar_aplicacao():
     app = Aplicacao()
     app.mainloop()
+
+class AbaSimulacao(ttk.Frame):
+    """R1/R3/R4: escolhe algoritmo, quantum/ttc, protocolo de recurso e
+    envelhecimento; mostra o diagrama de tempo e as metricas."""
+
+    def __init__(self, master, app: Aplicacao):
+        super().__init__(master, padding=16)
+        self.app = app
+        self._montar()
+
+    def _montar(self):
+        cartao_config = ttk.LabelFrame(self, text="Configuração da simulação", padding=10)
+        cartao_config.pack(fill="x", pady=(0, 8))
+
+        ttk.Label(cartao_config, text="Algoritmo", font=(tema.FONTE, 11, "bold")).grid(
+            row=0, column=0, sticky="w", pady=(0, 6))
+        self.var_algo = tk.StringVar(value="FCFS")
+        algos = [
+            ("1. FCFS", "FCFS"), ("2. SJF", "SJF"), ("3. Round-Robin", "RR"),
+            ("4. SRTF", "SRTF"), ("5. Prioridade cooperativa", "PRIOc"), ("6. Prioridade preemptiva", "PRIOp"),
+        ]
+        radios = ttk.Frame(cartao_config)
+        radios.grid(row=1, column=0, columnspan=6, sticky="w")
+        for i, (rotulo, valor) in enumerate(algos):
+            ttk.Radiobutton(radios, text=rotulo, variable=self.var_algo, value=valor,
+                            command=self._atualizar_campos).grid(row=i // 3, column=i % 3, sticky="w", padx=(0, 26), pady=3)
+
+        sep = ttk.Separator(cartao_config, orient="horizontal")
+        sep.grid(row=2, column=0, columnspan=6, sticky="ew", pady=8)
+
+        # esses campos so aparecem quando fazem sentido pro algoritmo
+        # escolhido - quantum so existe no RR, alpha so nos dois de
+        # prioridade, protocolo so no PRIOp (_atualizar_campos cuida disso)
+        params = ttk.Frame(cartao_config)
+        params.grid(row=3, column=0, columnspan=6, sticky="w")
+
+        ttk.Label(params, text="Custo da troca de contexto (ttc)").grid(row=0, column=0, sticky="w", padx=(0, 6))
+        self.e_ttc = ttk.Entry(params, width=8, justify="center")
+        self.e_ttc.insert(0, "0")
+        self.e_ttc.grid(row=1, column=0, padx=(0, 24), pady=(2, 0), sticky="w")
+
+        self.lbl_tq = ttk.Label(params, text="Quantum (tq)")
+        self.e_tq = ttk.Entry(params, width=8, justify="center")
+        self.e_tq.insert(0, "2")
+        self.lbl_tq.grid(row=0, column=1, sticky="w", padx=(0, 6))
+        self.e_tq.grid(row=1, column=1, padx=(0, 24), pady=(2, 0), sticky="w")
+
+        self.lbl_alpha = ttk.Label(params, text="Envelhecimento α (opcional)")
+        self.e_alpha = ttk.Entry(params, width=8, justify="center")
+        self.lbl_alpha.grid(row=0, column=2, sticky="w", padx=(0, 6))
+        self.e_alpha.grid(row=1, column=2, padx=(0, 24), pady=(2, 0), sticky="w")
+
+        self.lbl_protocolo = ttk.Label(params, text="Correção de inversão")
+        self.var_protocolo = tk.StringVar(value="Nenhuma")
+        self.combo_protocolo = ttk.Combobox(
+            params, textvariable=self.var_protocolo, state="readonly", width=20,
+            values=["Nenhuma", "Herança de prioridade", "Teto de prioridade"],
+        )
+        self.lbl_protocolo.grid(row=0, column=3, sticky="w", padx=(0, 6))
+        self.combo_protocolo.grid(row=1, column=3, pady=(2, 0), sticky="w")
+
+        ttk.Button(self, text="▶  Simular", style="Primaria.TButton",
+                   command=self._simular).pack(pady=(0, 6))
+
+        cartao_resultado = ttk.LabelFrame(self, text="Resultado", padding=(14, 10))
+        cartao_resultado.pack(fill="both", expand=True)
+
+        self.lbl_resumo = ttk.Label(cartao_resultado, text="Configure e clique em Simular.", style="Resumo.TLabel",
+                                     wraplength=1000, justify="left")
+        self.lbl_resumo.pack(anchor="w", pady=(0, 8), fill="x")
+
+        container = ttk.Frame(cartao_resultado, style="Cartao.TFrame")
+        container.pack(fill="both", expand=True)
+        self.canvas = tk.Canvas(container, bg="#FFFFFF", highlightthickness=1, highlightbackground=tema.BORDA)
+        hbar = ttk.Scrollbar(container, orient="horizontal", command=self.canvas.xview)
+        vbar = ttk.Scrollbar(container, orient="vertical", command=self.canvas.yview)
+        self.canvas.configure(xscrollcommand=hbar.set, yscrollcommand=vbar.set)
+        self.canvas.grid(row=0, column=0, sticky="nsew")
+        vbar.grid(row=0, column=1, sticky="ns")
+        hbar.grid(row=1, column=0, sticky="ew")
+        container.rowconfigure(0, weight=1)
+        container.columnconfigure(0, weight=1)
+
+        self._atualizar_campos()
+
+    def _atualizar_campos(self):
+        # mostra/esconde campos de acordo com o algoritmo escolhido
+        algo = self.var_algo.get()
+        if algo == "RR":
+            self.lbl_tq.grid()
+            self.e_tq.grid()
+        else:
+            self.lbl_tq.grid_remove()
+            self.e_tq.grid_remove()
+        if algo in ("PRIOc", "PRIOp"):
+            self.lbl_alpha.grid()
+            self.e_alpha.grid()
+        else:
+            self.lbl_alpha.grid_remove()
+            self.e_alpha.grid_remove()
+        if algo == "PRIOp":
+            self.lbl_protocolo.grid()
+            self.combo_protocolo.grid()
+        else:
+            self.lbl_protocolo.grid_remove()
+            self.combo_protocolo.grid_remove()
+
+    def _simular(self):
+        if not self.app.tarefas:
+            messagebox.showinfo("Simular", "Adicione ou sorteie tarefas na aba \"1 · Tarefas\" primeiro.")
+            return
+        algo = self.var_algo.get()
+        try:
+            ttc = validacao.validar_numero_nao_negativo(self.e_ttc.get(), "Custo da troca de contexto")
+            kwargs = {"ttc": ttc}
+            if algo == "RR":
+                tq, ttc = validacao.validar_quantum_e_ttc(self.e_tq.get(), self.e_ttc.get())
+                kwargs = {"tq": tq, "ttc": ttc}
+            if algo in ("PRIOc", "PRIOp"):
+                alpha_txt = self.e_alpha.get().strip()
+                kwargs["alpha"] = validacao.validar_numero_nao_negativo(alpha_txt, "Envelhecimento (α)") if alpha_txt else None
+            if algo == "PRIOp":
+                mapa = {"Nenhuma": None, "Herança de prioridade": "heranca", "Teto de prioridade": "teto"}
+                kwargs["protocolo_recurso"] = mapa[self.var_protocolo.get()]
+        except ValueError as e:
+            messagebox.showerror("Valor inválido", str(e))
+            return
+
+        # cria copias novas das tarefas antes de simular - assim o
+        # cenario que esta na aba "1 · Tarefas" nunca e alterado por
+        # uma simulacao
+        tarefas = [Tarefa(t.id, t.chegada, t.tp, t.prioridade_base, t.sc_inicio, t.sc_duracao) for t in self.app.tarefas]
+        try:
+            resultado = ALGORITMOS[algo](tarefas, **kwargs)
+        except ErroSimulacao as e:
+            messagebox.showerror("Não foi possível simular", str(e))
+            return
+        except Exception as e:
+            messagebox.showerror("Erro ao simular", f"{e}")
+            return
+
+        self._mostrar_resultado(resultado)
+
+    def _mostrar_resultado(self, resultado):
+        ef = resultado.eficiencia()
+        ef_txt = "não definida (sem quantum)" if ef is None else f"{float(ef):.3f}"
+        resumo = (
+            f"{resultado.algoritmo}   ·   Tt médio = {_fmt(resultado.media_tt())}   ·   "
+            f"Tw médio = {_fmt(resultado.media_tw())}   ·   "
+            f"1ª exec. média = {_fmt(resultado.media_primeira_execucao())}   ·   "
+            f"trocas de contexto = {resultado.trocas_contexto}   ·   "
+            f"eficiência E = {ef_txt}"
+        )
+        self.lbl_resumo.config(text=resumo)
+        desenhar_gantt(self.canvas, resultado)
+        # volta o scroll pro topo/inicio, senao pode ficar preso na
+        # posicao da simulacao anterior
+        self.canvas.xview_moveto(0)
+        self.canvas.yview_moveto(0)    

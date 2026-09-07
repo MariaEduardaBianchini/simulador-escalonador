@@ -403,3 +403,24 @@ def round_robin(tarefas: List[Tarefa], tq, ttc=ZERO) -> ResultadoSimulacao:
         algoritmo="Round-Robin", sigla="RR", tarefas=tarefas, ttc=ttc, tq=tq,
         trocas_contexto=trocas_contexto,
     )
+
+ALGORITMOS = {
+    "FCFS": lambda tarefas, **kw: fcfs(tarefas, ttc=kw.get("ttc", ZERO)),
+    "SJF": lambda tarefas, **kw: sjf(tarefas, ttc=kw.get("ttc", ZERO)),
+    "SRTF": lambda tarefas, **kw: srtf(tarefas, ttc=kw.get("ttc", ZERO)),
+    "RR": lambda tarefas, **kw: round_robin(tarefas, kw["tq"], ttc=kw.get("ttc", ZERO)),
+    "PRIOc": lambda tarefas, **kw: prioridade_cooperativa(tarefas, ttc=kw.get("ttc", ZERO), alpha=kw.get("alpha")),
+    "PRIOp": lambda tarefas, **kw: prioridade_preemptiva(
+        tarefas, ttc=kw.get("ttc", ZERO), alpha=kw.get("alpha"),
+        protocolo_recurso=kw.get("protocolo_recurso"),
+    ),
+}
+
+NOMES_ALGORITMOS = {
+    "FCFS": "First-Come, First-Served",
+    "SJF": "Shortest Job First",
+    "SRTF": "Shortest Remaining Time First",
+    "RR": "Round-Robin",
+    "PRIOc": "Prioridade Cooperativa",
+    "PRIOp": "Prioridade Preemptiva",
+}
