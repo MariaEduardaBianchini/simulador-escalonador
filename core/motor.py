@@ -56,6 +56,12 @@ def _chave_srtf(t: Tarefa):
     # nao o tp original -> por isso ele preempta no meio
     return (t.restante, t.chegada, t.id)
 
+def _chave_prioridade(t: Tarefa):
+    # quanto MAIOR a prioridade, mais cedo a tarefa deve rodar - mas a
+    # nossa chave e "quem tem o menor valor ganha", entao inverte o sinal
+    # (regra C2 do enunciado: prioridade maior = mais prioritaria)
+    return (-t.prioridade_atual(), t.chegada, t.id)
+
 
 # tabela que junta cada sigla com sua chave de escolha e se ele
 # pode interromper quem esta rodando (preemptivo) ou nao
@@ -63,6 +69,11 @@ ALGORITMOS_GENERICOS = {
     "FCFS": dict(nome="First-Come, First-Served", chave=_chave_fcfs, preemptivo=False),
     "SJF": dict(nome="Shortest Job First", chave=_chave_sjf, preemptivo=False),
     "SRTF": dict(nome="Shortest Remaining Time First", chave=_chave_srtf, preemptivo=True),
+    # cooperativa nao interrompe quem esta rodando; preemptiva interrompe
+    # se uma tarefa de prioridade maior aparecer - a UNICA diferenca entre
+    # as duas e essa flag
+    "PRIOc": dict(nome="Prioridade Cooperativa", chave=_chave_prioridade, preemptivo=False),
+    "PRIOp": dict(nome="Prioridade Preemptiva", chave=_chave_prioridade, preemptivo=True),
 }
 
 
@@ -180,6 +191,13 @@ def sjf(tarefas, ttc=ZERO):
 
 def srtf(tarefas, ttc=ZERO):
     return _executar(tarefas, "SRTF", para_fracao(ttc))
+
+def prioridade_cooperativa(tarefas, ttc=ZERO):
+    return _executar(tarefas, "PRIOc", para_fracao(ttc))
+
+
+def prioridade_preemptiva(tarefas, ttc=ZERO):
+    return _executar(tarefas, "PRIOp", para_fracao(ttc))
 
 # =================================================================
 # ROUND-ROBIN
