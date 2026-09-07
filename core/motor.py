@@ -180,3 +180,107 @@ def sjf(tarefas, ttc=ZERO):
 
 def srtf(tarefas, ttc=ZERO):
     return _executar(tarefas, "SRTF", para_fracao(ttc))
+
+# =================================================================
+# ROUND-ROBIN
+#
+# Diferente dos tres de cima, o RR nao escolhe por "quem tem a menor
+# chave" - ele so roda quem esta na frente de uma fila (fila circular:
+# quando estoura o quantum, a tarefa vai pro FIM da fila de novo).
+# Por isso ele nao reaproveita o _executar, tem o laco dele mesmo.
+# =================================================================
+def round_robin(tarefas: List[Tarefa], tq, ttc=ZERO) -> ResultadoSimulacao:
+    tq = para_fracao(tq)
+    ttc = para_fracao(ttc)
+
+    # regra R4 do enunciado: se o quantum fosse menor (ou igual) ao
+    # custo da troca, a troca consumiria a fatia inteira e a tarefa
+    # nunca faria trabalho de verdade -> tem que recusar isso
+    if tq <= ttc:
+        raise ErroSimulacao(
+            "O quantum precisa ser maior que o custo da troca de contexto "
+            "(senao a troca consome a fatia inteira e nenhum trabalho util e feito)."
+        )
+
+    for t in tarefas:
+        t.reset()
+
+    pendentes = sorted(tarefas, key=lambda t: (t.chegada, t.id))
+    fila: List[Tarefa] = []          # a fila circular
+    rodando: Optional[Tarefa] = None
+    ultima_na_cpu: Optional[Tarefa] = None
+    concluidas = 0
+    total = len(tarefas)
+    trocas_contexto = 0
+    clock = ZERO
+
+    def admitir():
+        nonlocal pendentes
+        restam = []
+        for t in pendentes:
+            if t.chegada <= clock:
+                fila.append(t)
+            else:
+                restam.append(t)
+        pendentes = restam
+
+    protecao = 0
+    while concluidas < total:
+        protecao += 1
+        if protecao > 5_000_000:
+            raise ErroSimulacao("Simulacao nao converge (verifique os dados de entrada).")
+
+        admitir()
+        if rodando is None and not fila:
+            if not pendentes:
+                raise ErroSimulacao("Impasse no Round-Robin (verifique os dados de entrada).")
+            clock = pendentes[0].chegada
+            continue
+
+        if rodando is None:
+            # tira o primeiro da fila - e so isso, nao tem "melhor
+            # candidato" no RR, e sempre quem esta na frente
+            rodando = fila.pop(0)
+
+        # troca de contexto: mesma regra C4 de antes
+        houve_troca = rodando is not ultima_na_cpu
+        if houve_troca:
+            if ttc > 0:
+                _acrescentar_periodo(rodando, clock, clock + ttc, "CTX")
+                clock += ttc
+            trocas_contexto += 1
+            ultima_na_cpu = rodando
+        rodando.ultimo_despacho = clock
+
+        # aqui e o ponto mais delicado do RR (regra C5 do enunciado):
+        # o custo da troca e DESCONTADO da fatia, nunca somado a ela.
+        # entao se rodou com troca, sobra (tq - ttc) de trabalho util
+        # nessa fatia; se nao teve troca (mesma tarefa de novo, sem
+        # ninguem mais na fila), a fatia inteira (tq) e util.
+        capacidade_util = (tq - ttc) if houve_troca else tq
+        fatia = min(capacidade_util, rodando.restante)
+
+        inicio_fatia = clock
+        _acrescentar_periodo(rodando, inicio_fatia, inicio_fatia + fatia, "EXEC")
+        clock += fatia
+        rodando.progresso += fatia
+        rodando.restante -= fatia
+
+        if rodando.restante == 0:
+            # terminou dentro dessa fatia -> acabou, nao volta pra fila
+            rodando.conclusao = clock
+            concluidas += 1
+            rodando = None
+        else:
+            # estourou o quantum sem terminar -> volta pro FIM da fila,
+            # mas so depois de admitir quem chegou exatamente agora
+            # (regra C6: quem chegou nesse instante entra na fila antes
+            # dela)
+            admitir()
+            fila.append(rodando)
+            rodando = None
+
+    return ResultadoSimulacao(
+        algoritmo="Round-Robin", sigla="RR", tarefas=tarefas, ttc=ttc, tq=tq,
+        trocas_contexto=trocas_contexto,
+    )
