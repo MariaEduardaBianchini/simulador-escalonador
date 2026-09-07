@@ -41,26 +41,44 @@ def _acrescentar_periodo(tarefa: Tarefa, inicio: Fraction, fim: Fraction, tipo: 
 # ganha a CPU. O desempate (chegada, id) e sempre o mesmo nos tres,
 # porque e a regra C3 do enunciado.
 # ---------------------------------------------------------------
-def _chave_fcfs(t: Tarefa):
-    # FCFS: só importa quem chegou primeiro
+def _chave_fcfs(t: Tarefa, clock, alpha):
+    # FCFS: só importa quem chegou primeiro (clock/alpha nao sao usados
+    # aqui, mas a assinatura precisa ser igual pra todo mundo)
     return (t.chegada, t.id)
 
 
-def _chave_sjf(t: Tarefa):
+def _chave_sjf(t: Tarefa, clock, alpha):
     # SJF: quem tem a menor duracao TOTAL (tp) ganha
     return (t.tp, t.chegada, t.id)
 
 
-def _chave_srtf(t: Tarefa):
+def _chave_srtf(t: Tarefa, clock, alpha):
     # SRTF: parecido com SJF, mas usa o que FALTA rodar (restante),
     # nao o tp original -> por isso ele preempta no meio
     return (t.restante, t.chegada, t.id)
 
-def _chave_prioridade(t: Tarefa):
+def _prioridade_efetiva(tarefa: Tarefa, clock, alpha) -> Fraction:
+    # sem envelhecimento configurado, a prioridade efetiva e so a atual
+    # (base, ou elevada por heranca/teto se for o caso)
+    base = Fraction(tarefa.prioridade_atual())
+    if not alpha:
+        return base
+
+    # ha quanto tempo essa tarefa esta esperando, sem ter recebido a CPU?
+    # conta desde o ULTIMO despacho dela, ou desde a chegada se ela nunca
+    # rodou (regra C10 do enunciado)
+    desde = tarefa.ultimo_despacho if tarefa.ultimo_despacho is not None else tarefa.chegada
+    decorrido = clock - desde
+    if decorrido < 0:
+        decorrido = ZERO
+    return base + alpha * decorrido
+
+
+def _chave_prioridade(t: Tarefa, clock, alpha):
     # quanto MAIOR a prioridade, mais cedo a tarefa deve rodar - mas a
     # nossa chave e "quem tem o menor valor ganha", entao inverte o sinal
     # (regra C2 do enunciado: prioridade maior = mais prioritaria)
-    return (-t.prioridade_atual(), t.chegada, t.id)
+    return (-_prioridade_efetiva(t, clock, alpha), t.chegada, t.id)
 
 
 # tabela que junta cada sigla com sua chave de escolha e se ele
@@ -77,13 +95,14 @@ ALGORITMOS_GENERICOS = {
 }
 
 
-def _melhor(tarefas: List[Tarefa], chave_fn) -> Tarefa:
+def _melhor(tarefas: List[Tarefa], clock, alpha, chave_fn) -> Tarefa:
     # pega a tarefa com a menor chave dentre as prontas
-    return min(tarefas, key=chave_fn)
+    return min(tarefas, key=lambda t: chave_fn(t, clock, alpha))
 
 
 def _executar(tarefas: List[Tarefa], sigla: str, ttc: Fraction,
-              protocolo_recurso: Optional[str] = None) -> ResultadoSimulacao:
+              protocolo_recurso: Optional[str] = None,
+              alpha: Optional[Fraction] = None) -> ResultadoSimulacao:
     cfg = ALGORITMOS_GENERICOS[sigla]
     chave_fn = cfg["chave"]
     preemptivo = cfg["preemptivo"]
@@ -144,13 +163,13 @@ def _executar(tarefas: List[Tarefa], sigla: str, ttc: Fraction,
             continue
 
         if rodando is None:
-            rodando = _melhor(prontas, chave_fn)
+            rodando = _melhor(prontas, clock, alpha, chave_fn)
             prontas.remove(rodando)
         elif preemptivo:
             admitir()
             if prontas:
-                candidata = _melhor(prontas, chave_fn)
-                if chave_fn(candidata) < chave_fn(rodando):
+                candidata = _melhor(prontas, clock, alpha, chave_fn)
+                if chave_fn(candidata, clock, alpha) < chave_fn(rodando, clock, alpha):
                     prontas.append(rodando)
                     prontas.remove(candidata)
                     rodando = candidata
@@ -270,12 +289,16 @@ def sjf(tarefas, ttc=ZERO):
 def srtf(tarefas, ttc=ZERO):
     return _executar(tarefas, "SRTF", para_fracao(ttc))
 
-def prioridade_cooperativa(tarefas, ttc=ZERO):
-    return _executar(tarefas, "PRIOc", para_fracao(ttc))
+def prioridade_cooperativa(tarefas, ttc=ZERO, alpha=None):
+    # alpha e o "passo" do envelhecimento (R8) - quanto a prioridade
+    # efetiva de uma tarefa parada na fila cresce por unidade de tempo
+    a = para_fracao(alpha) if alpha not in (None, "", 0, "0") else None
+    return _executar(tarefas, "PRIOc", para_fracao(ttc), alpha=a)
 
 
-def prioridade_preemptiva(tarefas, ttc=ZERO, protocolo_recurso=None):
-    return _executar(tarefas, "PRIOp", para_fracao(ttc), protocolo_recurso=protocolo_recurso)
+def prioridade_preemptiva(tarefas, ttc=ZERO, alpha=None, protocolo_recurso=None):
+    a = para_fracao(alpha) if alpha not in (None, "", 0, "0") else None
+    return _executar(tarefas, "PRIOp", para_fracao(ttc), protocolo_recurso=protocolo_recurso, alpha=a)
 
 # =================================================================
 # ROUND-ROBIN
