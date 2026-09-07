@@ -66,14 +66,14 @@ def _chave_prioridade(t: Tarefa):
 # tabela que junta cada sigla com sua chave de escolha e se ele
 # pode interromper quem esta rodando (preemptivo) ou nao
 ALGORITMOS_GENERICOS = {
-    "FCFS": dict(nome="First-Come, First-Served", chave=_chave_fcfs, preemptivo=False),
-    "SJF": dict(nome="Shortest Job First", chave=_chave_sjf, preemptivo=False),
-    "SRTF": dict(nome="Shortest Remaining Time First", chave=_chave_srtf, preemptivo=True),
+    "FCFS": dict(nome="First-Come, First-Served", chave=_chave_fcfs, preemptivo=False, usa_recurso=False),
+    "SJF": dict(nome="Shortest Job First", chave=_chave_sjf, preemptivo=False, usa_recurso=False),
+    "SRTF": dict(nome="Shortest Remaining Time First", chave=_chave_srtf, preemptivo=True, usa_recurso=False),
     # cooperativa nao interrompe quem esta rodando; preemptiva interrompe
     # se uma tarefa de prioridade maior aparecer - a UNICA diferenca entre
     # as duas e essa flag
-    "PRIOc": dict(nome="Prioridade Cooperativa", chave=_chave_prioridade, preemptivo=False),
-    "PRIOp": dict(nome="Prioridade Preemptiva", chave=_chave_prioridade, preemptivo=True),
+    "PRIOc": dict(nome="Prioridade Cooperativa", chave=_chave_prioridade, preemptivo=False, usa_recurso=False),
+    "PRIOp": dict(nome="Prioridade Preemptiva", chave=_chave_prioridade, preemptivo=True, usa_recurso=True),
 }
 
 
@@ -82,28 +82,32 @@ def _melhor(tarefas: List[Tarefa], chave_fn) -> Tarefa:
     return min(tarefas, key=chave_fn)
 
 
-def _executar(tarefas: List[Tarefa], sigla: str, ttc: Fraction) -> ResultadoSimulacao:
+def _executar(tarefas: List[Tarefa], sigla: str, ttc: Fraction,
+              protocolo_recurso: Optional[str] = None) -> ResultadoSimulacao:
     cfg = ALGORITMOS_GENERICOS[sigla]
     chave_fn = cfg["chave"]
     preemptivo = cfg["preemptivo"]
 
-    # zera o estado de simulacao de cada tarefa (progresso, periodos etc),
-    # pra caso essas mesmas tarefas ja tenham rodado em outro algoritmo antes
+    # so ativa a logica de recurso se o algoritmo suportar (so o PRIOp) E
+    # se pelo menos uma tarefa realmente declarou uma secao critica -
+    # senao fica tudo igual a antes, sem custo nenhum
+    usa_recurso = cfg["usa_recurso"] and any(t.tem_secao_critica for t in tarefas)
+
     for t in tarefas:
         t.reset()
 
-    # pendentes = ainda nao chegaram / prontas = ja chegaram e esperando a vez
     pendentes = sorted(tarefas, key=lambda t: (t.chegada, t.id))
     prontas: List[Tarefa] = []
+    bloqueadas: List[Tarefa] = []   # tarefas suspensas esperando o recurso R
+    detentor: Optional[Tarefa] = None   # quem esta segurando o recurso agora
     rodando: Optional[Tarefa] = None
-    ultima_na_cpu: Optional[Tarefa] = None   # serve pra saber se precisa cobrar troca de contexto
+    ultima_na_cpu: Optional[Tarefa] = None
     concluidas = 0
     total = len(tarefas)
     trocas_contexto = 0
-    clock = ZERO   # relogio da simulacao (comeca em 0)
+    clock = ZERO
 
     def admitir():
-        # move da lista de "pendentes" pra "prontas" quem ja chegou (chegada <= clock)
         nonlocal pendentes
         restam = []
         for t in pendentes:
@@ -115,40 +119,33 @@ def _executar(tarefas: List[Tarefa], sigla: str, ttc: Fraction) -> ResultadoSimu
 
     protecao = 0
     while concluidas < total:
-        # trava de seguranca: se rodar demais e nao terminar, algo esta errado
-        # nos dados de entrada -> avisa em vez de travar o programa pra sempre
         protecao += 1
         if protecao > 5_000_000:
             raise ErroSimulacao("Simulacao nao converge (verifique os dados de entrada).")
 
         admitir()
 
-        # ninguem rodando e ninguem pronto -> nao adianta ficar girando o
-        # laco sem fazer nada, entao pula o relogio direto pra proxima chegada
         if rodando is None and not prontas:
             if not pendentes:
-                raise ErroSimulacao("Impasse: nao ha tarefas prontas nem futuras.")
+                # ninguem pronto, ninguem vai chegar, e ainda falta gente
+                # terminar -> so pode ser tarefa presa esperando o recurso
+                # pra sempre (dado de entrada ruim)
+                raise ErroSimulacao("Impasse: ha tarefas suspensas que nunca liberam o recurso.")
             clock = pendentes[0].chegada
             continue
 
         if rodando is None:
-            # ninguem rodando ainda -> escolhe a melhor tarefa pronta
             rodando = _melhor(prontas, chave_fn)
             prontas.remove(rodando)
         elif preemptivo:
-            # ja tem alguem rodando, mas o algoritmo permite interromper:
-            # confere se apareceu alguem "melhor" que quem esta rodando agora
             admitir()
             if prontas:
                 candidata = _melhor(prontas, chave_fn)
                 if chave_fn(candidata) < chave_fn(rodando):
-                    prontas.append(rodando)      # devolve quem estava rodando pra fila
+                    prontas.append(rodando)
                     prontas.remove(candidata)
-                    rodando = candidata          # e coloca a nova no lugar
+                    rodando = candidata
 
-        # troca de contexto: toda vez que a tarefa que vai rodar agora e
-        # diferente da que rodou no passo anterior (regra C4, vale ate na
-        # primeira vez que qualquer coisa roda)
         if rodando is not ultima_na_cpu:
             if ttc > 0:
                 _acrescentar_periodo(rodando, clock, clock + ttc, "CTX")
@@ -157,7 +154,28 @@ def _executar(tarefas: List[Tarefa], sigla: str, ttc: Fraction) -> ResultadoSimu
             ultima_na_cpu = rodando
             rodando.ultimo_despacho = clock
 
-        # executa 1 unidade de tempo (a unidade basica do enunciado, C1)
+        # ---------------------------------------------------------------
+        # ponto novo: antes de rodar, confere se essa tarefa chegou
+        # exatamente no instante em que ela precisa do recurso (progresso
+        # bate com sc_inicio - regra C7, medido no progresso DELA, nao no
+        # relogio geral)
+        # ---------------------------------------------------------------
+        if usa_recurso and rodando.tem_secao_critica and not rodando.tem_recurso \
+                and rodando.progresso == rodando.sc_inicio:
+            if detentor is None:
+                # recurso livre -> ela pega e segue rodando normalmente
+                detentor = rodando
+                rodando.tem_recurso = True
+            else:
+                # recurso ocupado -> essa tarefa fica SUSPENSA (sai do
+                # conjunto de prontas de vez, nao importa a prioridade
+                # dela - e literalmente o que o R5 pede)
+                bloqueadas.append(rodando)
+                rodando = None
+                ultima_na_cpu = None
+                continue
+
+        # executa 1 unidade de tempo
         passo = min(UM, rodando.restante)
         inicio_passo = clock
         _acrescentar_periodo(rodando, inicio_passo, inicio_passo + passo, "EXEC")
@@ -165,7 +183,39 @@ def _executar(tarefas: List[Tarefa], sigla: str, ttc: Fraction) -> ResultadoSimu
         rodando.progresso += passo
         rodando.restante -= passo
 
-        # se zerou o que faltava, a tarefa terminou
+        # ---------------------------------------------------------------
+        # enquanto essa unidade rodava, quem estava bloqueado tambem
+        # "viveu" esse tempo esperando - aqui a gente classifica esse
+        # tempo de espera em dois tipos (R5 pede essa distincao):
+        #   DIRETO    -> quem estava rodando era o proprio detentor do
+        #                recurso (espera inevitavel, ele vai liberar em
+        #                breve)
+        #   INVERSAO  -> quem estava rodando NAO e o detentor - ou seja,
+        #                uma tarefa de prioridade mais baixa que a
+        #                bloqueada esta passando na frente dela so
+        #                porque o detentor tambem foi preemptado
+        # ---------------------------------------------------------------
+        for tb in bloqueadas:
+            tipo = "DIRETO" if rodando is detentor else "INVERSAO"
+            if tb.bloqueios and tb.bloqueios[-1][2] == tipo and tb.bloqueios[-1][1] == inicio_passo:
+                ini0, _, tp0 = tb.bloqueios[-1]
+                tb.bloqueios[-1] = (ini0, clock, tp0)
+            else:
+                tb.bloqueios.append((inicio_passo, clock, tipo))
+            _acrescentar_periodo(tb, inicio_passo, clock, "BLOQ")
+
+        # ---------------------------------------------------------------
+        # a secao critica termina quando o progresso dela bate em
+        # sc_inicio + sc_duracao -> libera o recurso e desbloqueia quem
+        # estava esperando (o de maior prioridade entre os que esperam)
+        # ---------------------------------------------------------------
+        if usa_recurso and detentor is rodando and rodando.progresso == rodando.sc_inicio + rodando.sc_duracao:
+            detentor = None
+            if bloqueadas:
+                bloqueadas.sort(key=lambda b: (-b.prioridade_base, b.chegada, b.id))
+                liberada = bloqueadas.pop(0)
+                prontas.append(liberada)
+
         if rodando.restante == 0:
             rodando.conclusao = clock
             concluidas += 1
@@ -173,9 +223,9 @@ def _executar(tarefas: List[Tarefa], sigla: str, ttc: Fraction) -> ResultadoSimu
 
     return ResultadoSimulacao(
         algoritmo=cfg["nome"], sigla=sigla, tarefas=tarefas, ttc=ttc,
+        protocolo_recurso=protocolo_recurso if usa_recurso else None,
         trocas_contexto=trocas_contexto,
     )
-
 
 # ---------------------------------------------------------------
 # funcoes que a interface (e os testes) realmente chamam - cada uma
@@ -196,8 +246,8 @@ def prioridade_cooperativa(tarefas, ttc=ZERO):
     return _executar(tarefas, "PRIOc", para_fracao(ttc))
 
 
-def prioridade_preemptiva(tarefas, ttc=ZERO):
-    return _executar(tarefas, "PRIOp", para_fracao(ttc))
+def prioridade_preemptiva(tarefas, ttc=ZERO, protocolo_recurso=None):
+    return _executar(tarefas, "PRIOp", para_fracao(ttc), protocolo_recurso=protocolo_recurso)
 
 # =================================================================
 # ROUND-ROBIN
