@@ -96,6 +96,15 @@ def _executar(tarefas: List[Tarefa], sigla: str, ttc: Fraction,
     for t in tarefas:
         t.reset()
 
+    # teto do recurso (R7 / convencao C9): a MAIOR prioridade entre todas
+    # as tarefas que declaram usar esse recurso, calculado uma vez so, no
+    # comeco - nao importa se a disputa realmente vai acontecer ou nao
+    teto_recurso = None
+    if usa_recurso and protocolo_recurso == "teto":
+        candidatos = [t.prioridade_base for t in tarefas if t.tem_secao_critica]
+        if candidatos:
+            teto_recurso = max(candidatos)
+
     pendentes = sorted(tarefas, key=lambda t: (t.chegada, t.id))
     prontas: List[Tarefa] = []
     bloqueadas: List[Tarefa] = []   # tarefas suspensas esperando o recurso R
@@ -166,6 +175,12 @@ def _executar(tarefas: List[Tarefa], sigla: str, ttc: Fraction,
                 # recurso livre -> ela pega e segue rodando normalmente
                 detentor = rodando
                 rodando.tem_recurso = True
+
+                # ---- teto (R7): eleva a prioridade JA, no instante em
+                # que pega o recurso - diferente da heranca, nao espera
+                # ninguem disputar pra agir ----
+                if protocolo_recurso == "teto" and teto_recurso is not None:
+                    rodando.prioridade_override = max(rodando.prioridade_base, teto_recurso)
             else:
                 # recurso ocupado -> essa tarefa fica SUSPENSA (sai do
                 # conjunto de prontas de vez, nao importa a prioridade
