@@ -61,9 +61,11 @@ class Aplicacao(tk.Tk):
 
         self.aba_tarefas = AbaTarefas(notebook, self)
         self.aba_simulacao = AbaSimulacao(notebook, self)
+        self.aba_comparacao = AbaComparacao(notebook, self)
 
         notebook.add(self.aba_tarefas, text="1 · Tarefas")
         notebook.add(self.aba_simulacao, text="2 · Simular um cenário")
+        notebook.add(self.aba_comparacao, text="3 · Comparar em lote")
         
     def _tratar_excecao_tk(self, exc, val, tb):
         traceback.print_exception(exc, val, tb)
@@ -325,12 +327,6 @@ class JanelaSorteio(tk.Toplevel):
             self.app.tarefas.extend(novas)
         self.aba.atualizar_lista()
         self.destroy()
-
-
-def iniciar_aplicacao():
-    app = Aplicacao()
-    app.mainloop()
-
 class AbaSimulacao(ttk.Frame):
     """R1/R3/R4: escolhe algoritmo, quantum/ttc, protocolo de recurso e
     envelhecimento; mostra o diagrama de tempo e as metricas."""
@@ -488,4 +484,122 @@ class AbaSimulacao(ttk.Frame):
         # volta o scroll pro topo/inicio, senao pode ficar preso na
         # posicao da simulacao anterior
         self.canvas.xview_moveto(0)
-        self.canvas.yview_moveto(0)    
+        self.canvas.yview_moveto(0)
+
+class AbaComparacao(ttk.Frame):
+    """R9: gera um lote de cenarios aleatorios e compara os seis
+    algoritmos pelas medias de Tt e Tw, alem de guardar o ultimo
+    cenario sorteado pra dar uma olhada em detalhe."""
+
+    def __init__(self, master, app: Aplicacao):
+        super().__init__(master, padding=16)
+        self.app = app
+        self._ultimo_cenario = None
+        self._montar()
+
+    def _montar(self):
+        ttk.Label(self, text="Compare os seis algoritmos em vários cenários sorteados",
+                  style="Titulo.TLabel").pack(anchor="w", pady=(0, 2))
+        ttk.Label(
+            self,
+            text="Cada execução sorteia outros cenários — os valores absolutos mudam, mas a ordenação\n"
+                 "(SRTF com o menor Tw, Round-Robin com o menor tempo até a 1ª execução) deve se manter.",
+            style="Subtitulo.TLabel", justify="left",
+        ).pack(anchor="w", pady=(0, 12))
+
+        cartao_params = ttk.LabelFrame(self, text="Parâmetros do lote", padding=14)
+        cartao_params.pack(fill="x", pady=(0, 12))
+
+        rotulos_padroes = [
+            ("Nº de cenários no lote", "50"),
+            ("Tarefas por cenário", "5"),
+            ("Ingresso máximo", "8"),
+            ("Duração máxima", "6"),
+            ("Prioridade máxima", "5"),
+            ("Quantum (RR)", "2"),
+            ("Custo de troca (ttc)", "0"),
+        ]
+        self.entradas = {}
+        for i, (rotulo, padrao) in enumerate(rotulos_padroes):
+            ttk.Label(cartao_params, text=rotulo).grid(row=0, column=i, padx=8, sticky="w")
+            e = ttk.Entry(cartao_params, width=9, justify="center")
+            e.insert(0, padrao)
+            e.grid(row=1, column=i, padx=8, pady=(2, 0))
+            self.entradas[rotulo] = e
+
+        ttk.Button(self, text="▶  Gerar lote e comparar", style="Primaria.TButton",
+                   command=self._executar_lote).pack(pady=10)
+
+        cartao_tabela = ttk.LabelFrame(self, text="Médias por algoritmo", padding=12)
+        cartao_tabela.pack(fill="x", pady=(0, 10))
+        colunas = ("algoritmo", "tt", "tw", "primeira")
+        self.tabela = ttk.Treeview(cartao_tabela, columns=colunas, show="headings", height=6)
+        larguras = {"algoritmo": 300, "tt": 160, "tw": 160, "primeira": 170}
+        for c, titulo in [("algoritmo", "Algoritmo"), ("tt", "Tt médio"), ("tw", "Tw médio"), ("primeira", "1ª exec. média")]:
+            self.tabela.heading(c, text=titulo)
+            self.tabela.column(c, width=larguras[c], anchor="w" if c == "algoritmo" else "center")
+        self.tabela.pack(fill="x")
+
+        ttk.Button(self, text="Usar o último cenário sorteado na aba \"2 · Simular\"",
+                   style="Neutro.TButton", command=self._usar_ultimo).pack(pady=4)
+
+    def _executar_lote(self):
+        try:
+            n_cenarios = validacao.validar_inteiro_positivo(self.entradas["Nº de cenários no lote"].get(), "Nº de cenários")
+            n_tarefas = validacao.validar_inteiro_positivo(self.entradas["Tarefas por cenário"].get(), "Tarefas por cenário")
+            cheg_max = validacao.validar_inteiro_nao_negativo(self.entradas["Ingresso máximo"].get(), "Ingresso máximo")
+            dur_max = validacao.validar_inteiro_positivo(self.entradas["Duração máxima"].get(), "Duração máxima")
+            prio_max = validacao.validar_inteiro_positivo(self.entradas["Prioridade máxima"].get(), "Prioridade máxima")
+            tq, ttc = validacao.validar_quantum_e_ttc(self.entradas["Quantum (RR)"].get(), self.entradas["Custo de troca (ttc)"].get())
+        except ValueError as e:
+            messagebox.showerror("Valor inválido", str(e))
+            return
+
+        siglas = ["FCFS", "SJF", "SRTF", "RR", "PRIOc", "PRIOp"]
+        somas_tt = {s: Fraction(0) for s in siglas}
+        somas_tw = {s: Fraction(0) for s in siglas}
+        somas_1a = {s: Fraction(0) for s in siglas}
+
+        # sorteia n_cenarios conjuntos de tarefas diferentes, e roda os
+        # 6 algoritmos EM CADA UM, acumulando a soma pra tirar a media
+        # no final - isso e o coracao do R9
+        ultimo = None
+        for _ in range(n_cenarios):
+            base = gerar_tarefas(n_tarefas, cheg_max, dur_max, prio_max, permitir_secao_critica=False)
+            ultimo = base
+            for sigla in siglas:
+                # copia nova a cada algoritmo, pra um nao contaminar o outro
+                tarefas = [Tarefa(t.id, t.chegada, t.tp, t.prioridade_base) for t in base]
+                kwargs = {"ttc": ttc}
+                if sigla == "RR":
+                    kwargs = {"tq": tq, "ttc": ttc}
+                try:
+                    r = ALGORITMOS[sigla](tarefas, **kwargs)
+                except ErroSimulacao:
+                    continue
+                somas_tt[sigla] += r.media_tt()
+                somas_tw[sigla] += r.media_tw()
+                somas_1a[sigla] += r.media_primeira_execucao()
+
+        self._ultimo_cenario = ultimo
+        self.tabela.delete(*self.tabela.get_children())
+        for sigla in siglas:
+            self.tabela.insert("", "end", values=(
+                f"{sigla} — {NOMES_ALGORITMOS[sigla]}",
+                _fmt(somas_tt[sigla] / n_cenarios),
+                _fmt(somas_tw[sigla] / n_cenarios),
+                _fmt(somas_1a[sigla] / n_cenarios),
+            ))
+
+    def _usar_ultimo(self):
+        if not self._ultimo_cenario:
+            messagebox.showinfo("Usar cenário", "Gere um lote primeiro.")
+            return
+        self.app.tarefas = [Tarefa(t.id, t.chegada, t.tp, t.prioridade_base) for t in self._ultimo_cenario]
+        self.app.notificar_tarefas_alteradas()
+        messagebox.showinfo("Usar cenário", "O último cenário sorteado foi copiado para a aba \"1 · Tarefas\".")
+
+def iniciar_aplicacao():
+    app = Aplicacao()
+    app.mainloop()
+
