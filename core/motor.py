@@ -171,6 +171,15 @@ def _executar(tarefas: List[Tarefa], sigla: str, ttc: Fraction,
                 # conjunto de prontas de vez, nao importa a prioridade
                 # dela - e literalmente o que o R5 pede)
                 bloqueadas.append(rodando)
+
+                # ---- heranca (R6): quem segura o recurso "pega
+                # emprestada" a maior prioridade entre quem esta
+                # esperando por ele, ate liberar ----
+                if protocolo_recurso == "heranca":
+                    detentor.prioridade_override = max(
+                        detentor.prioridade_atual(), rodando.prioridade_base
+                    )
+
                 rodando = None
                 ultima_na_cpu = None
                 continue
@@ -210,6 +219,10 @@ def _executar(tarefas: List[Tarefa], sigla: str, ttc: Fraction,
         # estava esperando (o de maior prioridade entre os que esperam)
         # ---------------------------------------------------------------
         if usa_recurso and detentor is rodando and rodando.progresso == rodando.sc_inicio + rodando.sc_duracao:
+            # a heranca e temporaria: assim que libera o recurso, a
+            # tarefa volta pra prioridade dela original (regra do R6:
+            # "a heranca precisa ser revertida na liberacao")
+            rodando.prioridade_override = None
             detentor = None
             if bloqueadas:
                 bloqueadas.sort(key=lambda b: (-b.prioridade_base, b.chegada, b.id))
