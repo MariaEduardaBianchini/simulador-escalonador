@@ -77,7 +77,7 @@ simulador-escalonador/
 - `core/motor.py` — o mecanismo de simulação (laço único, comum a cinco dos seis algoritmos) e o Round-Robin (mecanismo próprio); implementa os seis algoritmos, o recurso exclusivo, a herança e o teto de prioridade, e o envelhecimento.
 - `core/validacao.py` — validação dos dados digitados, com mensagens de erro claras.
 - `core/geracao.py` — sorteio de cenários aleatórios e salvar/carregar um cenário em JSON.
-- `gui/app.py` — janela principal e as três abas da interface (tarefas, simulação, comparação em lote).
+- `gui/app.py` — janela principal e as quatro abas da interface (sobre o projeto, tarefas, simulação, comparação em lote).
 - `gui/tema.py` — paleta de cores e estilos visuais compartilhados pela interface.
 - `gui/gantt.py` — desenho do diagrama de tempo (Gantt), em `tkinter.Canvas` puro.
 - `testes/test_validacao_enunciado.py` — reproduz numericamente os cenários de referência do enunciado (seção 4 do PDF) e confere se os valores batem.
@@ -96,14 +96,15 @@ simulador-escalonador/
 | O que faz | Onde |
 |---|---|
 | Os seis algoritmos de escalonamento | `core/motor.py` |
-| Entrada digitada ou sorteada, com validação e salvar/recarregar cenário | `core/validacao.py`, `core/geracao.py`, `gui/app.py` (aba "1 · Tarefas") |
+| Aba explicativa do projeto e dos algoritmos | `gui/app.py` (aba "1 · Sobre o projeto") |
+| Entrada digitada ou sorteada, com validação e salvar/recarregar cenário | `core/validacao.py`, `core/geracao.py`, `gui/app.py` (aba "2 · Tarefas") |
 | Métricas por tarefa e em média (tt, tp, tw, 1ª execução) | `core/modelo.py` |
 | Quantum e custo de troca configuráveis, com validação e eficiência | `core/validacao.py`, `core/motor.py` (Round-Robin) |
 | Recurso exclusivo e inversão de prioridades | `core/motor.py` (bloco de gerenciamento do recurso) |
 | Herança de prioridade | `core/motor.py` (`protocolo_recurso="heranca"`) |
 | Teto de prioridade | `core/motor.py` (`protocolo_recurso="teto"`) |
 | Envelhecimento de prioridade | `core/motor.py` (`_prioridade_efetiva`) |
-| Comparação de algoritmos em lote de cenários sorteados | `gui/app.py` (aba "3 · Comparar em lote") |
+| Comparação de algoritmos em lote de cenários sorteados | `gui/app.py` (aba "4 · Comparar em lote") |
 | Diagrama de tempo | `gui/gantt.py` |
 
 ## Gerando o executável
