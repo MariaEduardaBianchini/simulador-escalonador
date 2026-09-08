@@ -9,24 +9,25 @@ import tkinter as tk
 from tkinter import ttk
 
 # ---- paleta ----------------------------------------------------------
-BG = "#FFF5F8"            # fundo geral da janela - rosa bem clarinho
+BG = "#FFFFFF"            # fundo geral da janela - branco
 BG_CARTAO = "#FFFFFF"     # fundo dos "cartoes" (LabelFrame, tabelas)
-BORDA = "#F6D3E3"
-TEXTO = "#4A2338"
-TEXTO_MUTED = "#9C6B85"
+BORDA = "#E0E0E0"
+TEXTO = "#222222"
+TEXTO_MUTED = "#6B6B6B"
 
-PRIMARIA = "#F472B6"       # rosa claro - acao principal (Simular, Adicionar)
+# cores dos botoes - mantidas como estavam
+PRIMARIA = "#F472B6"       # rosa - acao principal (Simular, Adicionar)
 PRIMARIA_HOVER = "#EC4899"
-SECUNDARIA = "#F9A8D4"     # rosa ainda mais claro - acoes auxiliares (sortear)
-SECUNDARIA_HOVER = "#F472B6"
+SECUNDARIA = "#FBCFE8"     # rosa bem claro - acoes auxiliares (sortear)
+SECUNDARIA_HOVER = "#F9A8D4"
 SUCESSO = "#4CAF7D"
 SUCESSO_HOVER = "#3B9067"
 PERIGO = "#E1618A"
 PERIGO_HOVER = "#C94973"
-NEUTRO = "#B98CA5"
-NEUTRO_HOVER = "#9C6B85"
+NEUTRO = "#8C8C8C"
+NEUTRO_HOVER = "#6B6B6B"
 
-FONTE = "Segoe UI"
+FONTE = "Arial"
 
 
 def _fonte(tam, peso="normal"):
@@ -56,11 +57,11 @@ def aplicar_tema(root: tk.Tk):
     estilo.configure("Nota.TLabel", background=BG, foreground=TEXTO_MUTED, font=(FONTE, 9, "italic"))
 
     estilo.configure("TNotebook", background=BG, borderwidth=0, tabmargins=(4, 6, 4, 0))
-    estilo.configure("TNotebook.Tab", background="#FBE1EC", foreground=TEXTO_MUTED,
+    estilo.configure("TNotebook.Tab", background="#F0F0F0", foreground=TEXTO_MUTED,
                       padding=(16, 9), font=_fonte(10, "bold"), borderwidth=0)
     estilo.map("TNotebook.Tab",
                background=[("selected", BG_CARTAO)],
-               foreground=[("selected", PRIMARIA_HOVER)])
+               foreground=[("selected", TEXTO)])
 
     estilo.configure("TEntry", fieldbackground="#FFFFFF", bordercolor=BORDA, lightcolor=BORDA,
                       darkcolor=BORDA, padding=6, relief="solid", borderwidth=1)
@@ -70,19 +71,19 @@ def aplicar_tema(root: tk.Tk):
 
     estilo.configure("Treeview", background="#FFFFFF", fieldbackground="#FFFFFF",
                       foreground=TEXTO, rowheight=28, font=_fonte(10), borderwidth=0)
-    estilo.configure("Treeview.Heading", background="#FBE1EC", foreground=TEXTO,
+    estilo.configure("Treeview.Heading", background="#F0F0F0", foreground=TEXTO,
                       font=_fonte(10, "bold"), relief="flat")
-    estilo.map("Treeview", background=[("selected", "#FDE4EF")], foreground=[("selected", PRIMARIA_HOVER)])
+    estilo.map("Treeview", background=[("selected", "#E8E8E8")], foreground=[("selected", TEXTO)])
 
     # gera um estilo de botao colorido pra cada "papel" (primario, de
     # sucesso, de perigo etc) em vez de definir a cor em cada botao
-    # individualmente na tela
+    # individualmente na tela - cores dos botoes mantidas
     def _botao(nome, cor, cor_hover, fg="#FFFFFF"):
         estilo.configure(f"{nome}.TButton", background=cor, foreground=fg,
                           font=_fonte(10, "bold"), padding=(14, 8), borderwidth=0, focusthickness=0)
         estilo.map(f"{nome}.TButton",
                    background=[("active", cor_hover), ("pressed", cor_hover)],
-                   foreground=[("disabled", "#D9BAC9")])
+                   foreground=[("disabled", "#CCCCCC")])
 
     _botao("Primaria", PRIMARIA, PRIMARIA_HOVER)
     _botao("Secundaria", SECUNDARIA, SECUNDARIA_HOVER, fg=TEXTO)

@@ -52,20 +52,22 @@ class Aplicacao(tk.Tk):
         ttk.Label(cabecalho, text="Simulador de Escalonamento", style="Titulo.TLabel").pack(anchor="w")
         ttk.Label(
             cabecalho,
-            text="Aula 5/6 · FCFS · SJF · SRTF · Round-Robin · Prioridade cooperativa · Prioridade preemptiva",
+            text="Algoritmos · FCFS · SJF · SRTF · Round-Robin · Prioridade cooperativa · Prioridade preemptiva",
             style="Subtitulo.TLabel",
         ).pack(anchor="w", pady=(2, 0))
 
         notebook = ttk.Notebook(self)
         notebook.pack(fill="both", expand=True, padx=16, pady=(4, 16))
 
+        self.aba_sobre = AbaSobre(notebook, self)
         self.aba_tarefas = AbaTarefas(notebook, self)
         self.aba_simulacao = AbaSimulacao(notebook, self)
         self.aba_comparacao = AbaComparacao(notebook, self)
 
-        notebook.add(self.aba_tarefas, text="1 · Tarefas")
-        notebook.add(self.aba_simulacao, text="2 · Simular um cenário")
-        notebook.add(self.aba_comparacao, text="3 · Comparar em lote")
+        notebook.add(self.aba_sobre, text="1 · Sobre o projeto")
+        notebook.add(self.aba_tarefas, text="2 · Tarefas")
+        notebook.add(self.aba_simulacao, text="3 · Simular um cenário")
+        notebook.add(self.aba_comparacao, text="4 · Comparar em lote")
         
     def _tratar_excecao_tk(self, exc, val, tb):
         traceback.print_exception(exc, val, tb)
@@ -82,6 +84,113 @@ class Aplicacao(tk.Tk):
         while candidato in usados:
             candidato += 1
         return candidato
+
+
+class AbaSobre(ttk.Frame):
+    """Tela inicial: explica o que o simulador faz e como cada algoritmo
+    se comporta, antes da pessoa comecar a cadastrar tarefas."""
+
+    def __init__(self, master, app: Aplicacao):
+        super().__init__(master, padding=0)
+        self.app = app
+        self._montar()
+
+    def _montar(self):
+        # a aba inteira vive dentro de uma area com rolagem, para o
+        # conteudo nunca ficar cortado, seja qual for o tamanho da janela
+        canvas = tk.Canvas(self, bg=tema.BG, highlightthickness=0)
+        vbar = ttk.Scrollbar(self, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=vbar.set)
+        canvas.pack(side="left", fill="both", expand=True)
+        vbar.pack(side="right", fill="y")
+
+        conteudo = ttk.Frame(canvas, padding=16)
+        janela_id = canvas.create_window((0, 0), window=conteudo, anchor="nw")
+
+        def _atualizar_scrollregion(event=None):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        conteudo.bind("<Configure>", _atualizar_scrollregion)
+
+        def _ajustar_largura(event):
+            canvas.itemconfig(janela_id, width=event.width)
+        canvas.bind("<Configure>", _ajustar_largura)
+
+        def _rolar_com_mouse(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        canvas.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", _rolar_com_mouse))
+        canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
+
+        def _titulo(texto, pady=(18, 8)):
+            ttk.Label(conteudo, text=texto, font=(tema.FONTE, 14, "bold")).pack(anchor="w", pady=pady)
+
+        def _paragrafo(texto, negrito_inicial=None):
+            p = ttk.Frame(conteudo)
+            p.pack(fill="x", pady=(0, 4))
+            if negrito_inicial:
+                ttk.Label(p, text=negrito_inicial, font=(tema.FONTE, 10, "bold")).pack(anchor="w")
+            ttk.Label(p, text=texto, justify="left", wraplength=1000,
+                      style="Subtitulo.TLabel").pack(anchor="w")
+
+        def _item(texto):
+            ttk.Label(conteudo, text=f"•  {texto}", justify="left", wraplength=980,
+                      style="Subtitulo.TLabel").pack(anchor="w", pady=(0, 2))
+
+        ttk.Label(conteudo, text="Sobre o Simulador", style="Titulo.TLabel").pack(anchor="w", pady=(0, 8))
+
+        _paragrafo(
+            "Este programa simula o funcionamento de diferentes algoritmos de "
+            "escalonamento de processos, conteúdo estudado em Sistemas Operacionais."
+        )
+
+        ttk.Label(conteudo, text="Você pode criar tarefas informando:",
+                  style="Subtitulo.TLabel").pack(anchor="w", pady=(8, 2))
+        _item("instante de chegada;")
+        _item("tempo necessário de processamento;")
+        _item("prioridade.")
+
+        _paragrafo(
+            "Depois, basta escolher um algoritmo de escalonamento e executar a "
+            "simulação.\nO programa mostra a ordem de execução das tarefas, o tempo de "
+            "espera, o instante de término e o diagrama de execução do processador."
+        )
+
+        _titulo("Algoritmos disponíveis")
+
+        algoritmos = [
+            ("FCFS", "Executa as tarefas pela ordem de chegada. A primeira que chega é a "
+                      "primeira a executar."),
+            ("SJF", "Entre as tarefas disponíveis, executa primeiro a que possui o menor "
+                     "tempo de processamento."),
+            ("SRTF", "Executa a tarefa com o menor tempo restante. Uma nova tarefa menor "
+                      "pode interromper a que está executando."),
+            ("Round-Robin", "Cada tarefa utiliza o processador durante um pequeno intervalo "
+                              "de tempo chamado quantum. Caso não termine, retorna para o "
+                              "final da fila."),
+            ("Prioridade Cooperativa", "Executa primeiro a tarefa de maior prioridade "
+                                        "disponível. A tarefa em execução não pode ser "
+                                        "interrompida."),
+            ("Prioridade Preemptiva", "Também escolhe a tarefa de maior prioridade, mas "
+                                       "permite que uma tarefa mais prioritária interrompa a "
+                                       "execução de outra."),
+        ]
+        for nome, texto in algoritmos:
+            _paragrafo(texto, negrito_inicial=nome)
+
+        _titulo("Recurso exclusivo")
+        _paragrafo(
+            "Na simulação de prioridade preemptiva, algumas tarefas também podem "
+            "utilizar um recurso exclusivo R.\nEsse recurso só pode ser utilizado por uma "
+            "tarefa de cada vez. Caso outra tarefa precise dele, deverá esperar até que "
+            "seja liberado.\nEssa situação permite demonstrar o problema conhecido como "
+            "inversão de prioridades e comparar técnicas como herança de prioridade e "
+            "teto de prioridade."
+        )
+
+        _titulo("Como começar")
+        _item("Acesse \"2 · Tarefas\" e crie as tarefas da simulação.")
+        _item("Depois, vá para \"3 · Simular um cenário\".")
+        _item("Escolha o algoritmo e execute a simulação.")
+        _item("Analise os resultados e o diagrama de execução.")
 
 
 class AbaTarefas(ttk.Frame):
@@ -602,4 +711,3 @@ class AbaComparacao(ttk.Frame):
 def iniciar_aplicacao():
     app = Aplicacao()
     app.mainloop()
-
