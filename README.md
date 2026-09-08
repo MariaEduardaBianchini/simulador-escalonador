@@ -6,7 +6,6 @@ Prof. Dr. Vinicius Borges. Oitavo Semestre do Curso de Engenharia da Computaçã
 ## Autoria
 
 - Alex Akio Nishimura Junior
-- Ana Marta de Souza Santos
 - Maria Eduarda Ferreira Bianchini
 - Pedro Henrique Rodrigues de Assis
 
