@@ -9,22 +9,22 @@ import tkinter as tk
 from tkinter import ttk
 
 # ---- paleta ----------------------------------------------------------
-BG = "#F4F6FB"            # fundo geral da janela
+BG = "#FFF5F8"            # fundo geral da janela - rosa bem clarinho
 BG_CARTAO = "#FFFFFF"     # fundo dos "cartoes" (LabelFrame, tabelas)
-BORDA = "#E2E8F0"
-TEXTO = "#1E293B"
-TEXTO_MUTED = "#64748B"
+BORDA = "#F6D3E3"
+TEXTO = "#4A2338"
+TEXTO_MUTED = "#9C6B85"
 
-PRIMARIA = "#4F46E5"       # indigo - acao principal (Simular, Adicionar)
-PRIMARIA_HOVER = "#4338CA"
-SECUNDARIA = "#0EA5E9"     # azul-ceu - acoes auxiliares (sortear)
-SECUNDARIA_HOVER = "#0284C7"
-SUCESSO = "#16A34A"
-SUCESSO_HOVER = "#15803D"
-PERIGO = "#DC2626"
-PERIGO_HOVER = "#B91C1C"
-NEUTRO = "#64748B"
-NEUTRO_HOVER = "#475569"
+PRIMARIA = "#F472B6"       # rosa claro - acao principal (Simular, Adicionar)
+PRIMARIA_HOVER = "#EC4899"
+SECUNDARIA = "#F9A8D4"     # rosa ainda mais claro - acoes auxiliares (sortear)
+SECUNDARIA_HOVER = "#F472B6"
+SUCESSO = "#4CAF7D"
+SUCESSO_HOVER = "#3B9067"
+PERIGO = "#E1618A"
+PERIGO_HOVER = "#C94973"
+NEUTRO = "#B98CA5"
+NEUTRO_HOVER = "#9C6B85"
 
 FONTE = "Segoe UI"
 
@@ -56,11 +56,11 @@ def aplicar_tema(root: tk.Tk):
     estilo.configure("Nota.TLabel", background=BG, foreground=TEXTO_MUTED, font=(FONTE, 9, "italic"))
 
     estilo.configure("TNotebook", background=BG, borderwidth=0, tabmargins=(4, 6, 4, 0))
-    estilo.configure("TNotebook.Tab", background="#E2E8F0", foreground=TEXTO_MUTED,
+    estilo.configure("TNotebook.Tab", background="#FBE1EC", foreground=TEXTO_MUTED,
                       padding=(16, 9), font=_fonte(10, "bold"), borderwidth=0)
     estilo.map("TNotebook.Tab",
                background=[("selected", BG_CARTAO)],
-               foreground=[("selected", PRIMARIA)])
+               foreground=[("selected", PRIMARIA_HOVER)])
 
     estilo.configure("TEntry", fieldbackground="#FFFFFF", bordercolor=BORDA, lightcolor=BORDA,
                       darkcolor=BORDA, padding=6, relief="solid", borderwidth=1)
@@ -70,9 +70,9 @@ def aplicar_tema(root: tk.Tk):
 
     estilo.configure("Treeview", background="#FFFFFF", fieldbackground="#FFFFFF",
                       foreground=TEXTO, rowheight=28, font=_fonte(10), borderwidth=0)
-    estilo.configure("Treeview.Heading", background="#EEF1F8", foreground=TEXTO,
+    estilo.configure("Treeview.Heading", background="#FBE1EC", foreground=TEXTO,
                       font=_fonte(10, "bold"), relief="flat")
-    estilo.map("Treeview", background=[("selected", "#E0E7FF")], foreground=[("selected", PRIMARIA)])
+    estilo.map("Treeview", background=[("selected", "#FDE4EF")], foreground=[("selected", PRIMARIA_HOVER)])
 
     # gera um estilo de botao colorido pra cada "papel" (primario, de
     # sucesso, de perigo etc) em vez de definir a cor em cada botao
@@ -82,10 +82,10 @@ def aplicar_tema(root: tk.Tk):
                           font=_fonte(10, "bold"), padding=(14, 8), borderwidth=0, focusthickness=0)
         estilo.map(f"{nome}.TButton",
                    background=[("active", cor_hover), ("pressed", cor_hover)],
-                   foreground=[("disabled", "#A0AEC0")])
+                   foreground=[("disabled", "#D9BAC9")])
 
     _botao("Primaria", PRIMARIA, PRIMARIA_HOVER)
-    _botao("Secundaria", SECUNDARIA, SECUNDARIA_HOVER)
+    _botao("Secundaria", SECUNDARIA, SECUNDARIA_HOVER, fg=TEXTO)
     _botao("Sucesso", SUCESSO, SUCESSO_HOVER)
     _botao("Perigo", PERIGO, PERIGO_HOVER)
     _botao("Neutro", NEUTRO, NEUTRO_HOVER)
