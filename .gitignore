@@ -6,7 +6,8 @@ venv/
 .venv/
 env/
 build/
-dist/
+dist/*
+!dist/SimuladorEscalonamento.exe
 *.egg-info/
 .vscode/
 .idea/
