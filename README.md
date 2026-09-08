@@ -1,7 +1,7 @@
 # Simulador de Escalonamento de Tarefas
 
 Projeto prático da disciplina de Sistemas Operacionais, ministrada por
-Prof. Dr. Vinicius Borges. Oitavo Semestre do Curso de Engenharia da Computação.
+Prof. Dr.  Vinícius S. Borges. Oitavo Semestre do Curso de Engenharia da Computação.
 
 ## Autoria
 
