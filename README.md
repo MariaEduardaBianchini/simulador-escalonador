@@ -1,7 +1,7 @@
 # Simulador de Escalonamento de Tarefas
 
 Projeto prático da disciplina de Sistemas Operacionais, ministrada por
-Prof. Dr.  Vinícius S. Borges. Oitavo Semestre do Curso de Engenharia da Computação.
+Prof. Dr.  Vinícius S. Borges. Oitavo Semestre do Curso de Engenharia de Computação.
 
 ## Autoria
 
@@ -27,7 +27,7 @@ escolha.
 
 ## Como executar
 
-Clique duas vezes em `SimuladorEscalonamento.exe`, dentro da pasta `dist/`.
+Baixe o projeto .zip e descompacte na pasta de preferência. Depois, clique duas vezes em `SimuladorEscalonamento.exe`, dentro da pasta `dist/`.
 Não é necessário instalar nada.
 
 Se o executável ainda não tiver sido gerado, veja a seção
@@ -84,7 +84,7 @@ simulador-escalonador/
 
 ## Requisitos de ambiente
 
-- Python 3.10 ou superior.
+- Para executar o projeto, é necessário o Python 3.10 ou superior.
 - Nenhuma biblioteca externa em tempo de execução — o programa usa apenas
   a biblioteca padrão do Python (`tkinter`, `fractions`, `json`, `random`).
 - A única dependência do projeto (`pyinstaller`, listada em
