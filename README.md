@@ -64,9 +64,9 @@ simulador-escalonador/
 │   └── test_validacao_enunciado.py
 ├── exemplos/                       Cenarios de exemplo em JSON
 └── docs/                           Tutoriais e documentacao tecnica
-    ├── tutorial_execucao.md
-    ├── tutorial_uso.md
-    ├── documentacao_tecnica.md
+    ├── tutorial_execucao.pdf
+    ├── tutorial_uso.pdf
+    ├── documentacao_tecnica.pdf
     └── imagens/
 ```
 
@@ -120,12 +120,12 @@ usado.
 
 ## Documentação
 
-- [Tutorial de execução](./docs/tutorial_execucao.md)
-- [Tutorial de uso](./docs/tutorial_uso.md)
-- [Documentação técnica](./docs/documentacao_tecnica.md)
+- [Tutorial de execução](./docs/tutorial_execucao.pdf)
+- [Tutorial de uso](./docs/tutorial_uso.pdf)
+- [Documentação técnica](./docs/documentacao_tecnica.pdf)
 
 ## Por onde começar
 
-1. Abra o programa e siga o [tutorial de execução](./docs/tutorial_execucao.md).
-2. Reproduza um cenário de exemplo pelo [tutorial de uso](./docs/tutorial_uso.md).
-3. Consulte a [documentação técnica](./docs/documentacao_tecnica.md) para entender o funcionamento interno.
+1. Abra o programa e siga o [tutorial de execução](./docs/tutorial_execucao.pdf).
+2. Reproduza um cenário de exemplo pelo [tutorial de uso](./docs/tutorial_uso.pdf).
+3. Consulte a [documentação técnica](./docs/documentacao_tecnica.pdf) para entender o funcionamento interno.

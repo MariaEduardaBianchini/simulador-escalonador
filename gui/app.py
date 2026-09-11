@@ -649,7 +649,7 @@ class AbaComparacao(ttk.Frame):
             self.tabela.column(c, width=larguras[c], anchor="w" if c == "algoritmo" else "center")
         self.tabela.pack(fill="x")
 
-        ttk.Button(self, text="Usar o último cenário sorteado na aba \"2 · Simular\"",
+        ttk.Button(self, text="Usar o último cenário sorteado na aba \"3· Simular\"",
                    style="Neutro.TButton", command=self._usar_ultimo).pack(pady=4)
 
     def _executar_lote(self):
